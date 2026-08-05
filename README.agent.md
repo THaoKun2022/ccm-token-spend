@@ -18,7 +18,7 @@
 | 1 | 仅 Windows（不支持 macOS / Linux） | 运行 `echo $env:OS` |
 | 2 | 已安装 Codex / ChatGPT 桌面版 | 桌面应用存在 |
 | 3 | 已安装 Codex++（BigPizzaV3/CodexPlusPlus） | 目录 `%APPDATA%\Codex++\user_scripts` 是否存在；**不存在 = 未安装 → 本工具不适用，请先让用户安装 Codex++** |
-| 4 | 二选一：Node.js ≥ 22，或用户接受免安装 exe 版 | `node -v` |
+| 4 | 二选一：Node.js ≥ 22，或用户接受内置 Node 的免安装 exe 版 | `node -v` |
 
 > 注意：源码直跑需要 Node ≥ 22（内置 WebSocket）。Codex++ 未安装时不要尝试绕过，本工具只支持 Codex++ 的注入机制。
 
@@ -45,7 +45,7 @@ cd <仓库目录>
 node token-stats.mjs --watch --cdp
 ```
 
-**方案 B：用户没有 Node.js —— 下载 Release 免安装包**
+**方案 B：用户没有单独安装 Node.js —— 下载 Release 的 exe 版（内置 Node）**
 
 到 https://github.com/THaoKun2022/ccm-token-spend/releases 下载 `ccm-token-spend-exe-*.zip`，解压后：
 

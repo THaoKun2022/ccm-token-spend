@@ -15,7 +15,7 @@
 - **操作系统：仅 Windows**（开发与测试基于 Windows 10 22H2；macOS / Linux 未支持，开机自启守护为 Windows 专属）。
 - **客户端：Codex / ChatGPT 桌面版**（不支持 codex CLI）。
 - **必须安装 Codex++**（负责注入面板脚本并开放调试端口 9229）。
-- **Node.js ≥ 22**（使用 node-version），或**无需 Node**（使用 exe-version）。
+- **Node.js ≥ 22**（使用 node-version），或**内置 Node 运行时**（exe-version，无需单独安装 Node.js）。
 
 ## ⚠️ 使用前提（请先按顺序确认）
 
@@ -23,7 +23,7 @@
 2. **必须安装 Codex++**（负责把面板脚本注入页面，并通过调试端口 9229 推送数据）。没装 Codex++ 的话，本工具不适用。
 3. **监控程序二选一：**
    - 电脑上**已安装 Node.js（≥ 22）** → 使用 `node-version`（脚本方式，体积小）；
-   - 电脑上**没有 Node.js** → 使用 `exe-version`（免安装、免环境，体积约 55MB）。
+   - 电脑上**没有 Node.js** → 使用 `exe-version`（内置 Node 运行时、免安装，体积约 55MB）。
 
 ```
 判断流程：

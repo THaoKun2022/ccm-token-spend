@@ -15,7 +15,7 @@ Shows per-thread / per-turn token usage in the bottom-right corner of the Codex 
 - **OS: Windows only** (developed and tested on Windows 10 22H2; macOS / Linux are not supported, and the auto-start daemon is Windows-specific).
 - **Client: Codex / ChatGPT desktop app** (codex CLI is not supported).
 - **Codex++ is required** (it injects the panel script into the page and opens debug port 9229).
-- **Node.js >= 22** (node-version), or **no Node needed** (exe-version).
+- **Node.js >= 22** (node-version), or **bundled Node runtime** (exe-version, no separate Node.js installation needed).
 
 ## ⚠️ Prerequisites (Check in Order)
 
@@ -23,7 +23,7 @@ Shows per-thread / per-turn token usage in the bottom-right corner of the Codex 
 2. **Codex++ must be installed** (it injects the panel script into the page and pushes data through debug port 9229). Without Codex++, this tool will not work.
 3. **Choose one monitor program:**
    - **Node.js (>= 22) installed** -> use `node-version` (script-based, small footprint);
-   - **No Node.js** -> use `exe-version` (no install, no runtime needed, about 55MB).
+   - **No Node.js** -> use `exe-version` (bundled Node runtime, portable, about 55MB).
 
 ```
 Decision flow:
