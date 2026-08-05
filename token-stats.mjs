@@ -133,7 +133,7 @@ function buildStats(parsed) {
       start: t.start,
       startLabel: t.startLabel,
       snippet: t.snippet,
-      requests: t.requests.length,
+      requests: t.requests,
       input: t.input,
       output: t.output,
       cached: t.cached,
@@ -175,7 +175,7 @@ function printStats(stats, { detail = false } = {}) {
   let i = 1;
   for (const t of stats.turns) {
     console.log(
-      `  T${i}  ${t.startLabel || "??:??"}  ${fmtShort(t.total)} tokens (输入 ${fmtShort(t.input)} + 输出 ${fmtShort(t.output)}), ${t.requests} 次请求${t.snippet ? "  「" + t.snippet + "」" : ""}`,
+      `  T${i}  ${t.startLabel || "??:??"}  ${fmtShort(t.total)} tokens (输入 ${fmtShort(t.input)} + 输出 ${fmtShort(t.output)}), ${t.requests.length} 次请求${t.snippet ? "  「" + t.snippet + "」" : ""}`,
     );
     if (detail) {
       t.requests.forEach((r, j) => {
@@ -196,7 +196,7 @@ function payloadFor(stats) {
     turns: stats.turns.map((t) => ({
       startLabel: t.startLabel,
       snippet: t.snippet,
-      requests: t.requests,
+      requests: t.requests.length,
       input: t.input,
       output: t.output,
       cached: t.cached,
