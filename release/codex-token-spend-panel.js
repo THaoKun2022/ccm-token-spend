@@ -9,8 +9,10 @@
   // pushes a sanitized summary through the Codex++ CDP channel).
   //
   // Data arrives via:
-  //   window.__ccmTokenSpend = { threadId, modelContextWindow, requestCount,
-  //                              sessionTotal, turns: [{startLabel, snippet, requests,
+  //   window.__ccmTokenSpend = { threadId, modelContextWindow, contextUsed,
+  //                              requestCount, sessionTotal, sessionInput,
+  //                              sessionCached, sessionOutput,
+  //                              turns: [{startLabel, snippet, requests,
   //                              input, output, total}], updatedAt }
   //   window.dispatchEvent(new Event("ccm-token-spend"))
 
@@ -19,9 +21,10 @@
   const MINI_ID = "ccm-token-spend-mini";
   const STORAGE_KEY = "__ccmTokenSpendPanelClosed";
   const POS_STORAGE_KEY = "__ccmTokenSpendPanelPos";
+  const MINI_POS_STORAGE_KEY = "__ccmTokenSpendMiniPos";
   const SIZE_STORAGE_KEY = "__ccmTokenSpendPanelSize";
   const MIN_W = 220;
-  const MIN_H = 140;
+  const MIN_H = 190;
 
   const state = {
     data: null,
@@ -29,6 +32,7 @@
     mini: null,
     skeletonBuilt: false,
     lastTurnsKey: null,
+    manipulating: false,
   };
 
   function fmtShort(n) {
@@ -51,9 +55,9 @@
     return [d.getHours(), d.getMinutes(), d.getSeconds()].map((v) => String(v).padStart(2, "0")).join(":");
   }
 
-  function loadPos() {
+  function loadPos(key) {
     try {
-      const raw = window.localStorage.getItem(POS_STORAGE_KEY);
+      const raw = window.localStorage.getItem(key);
       if (!raw) return null;
       const p = JSON.parse(raw);
       if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) return { x: p.x, y: p.y };
@@ -61,9 +65,9 @@
     return null;
   }
 
-  function savePos(x, y) {
+  function savePos(key, x, y) {
     try {
-      window.localStorage.setItem(POS_STORAGE_KEY, JSON.stringify({ x, y }));
+      window.localStorage.setItem(key, JSON.stringify({ x, y }));
     } catch {}
   }
 
@@ -89,8 +93,8 @@
     return { x: Math.max(0, Math.min(x, maxX)), y: Math.max(top, Math.min(y, maxY)) };
   }
 
-  function applyPos(el) {
-    const p = loadPos();
+  function applyPos(el, key) {
+    const p = loadPos(key);
     if (!p) return;
     const c = clampPos(el, p.x, p.y);
     el.style.left = c.x + "px";
@@ -117,16 +121,26 @@
 
   // Clamp a candidate size so the panel stays fully inside the window,
   // shifting top/left when growth would push beyond an edge.
-  function clampSize(w, h, left, top) {
+  function clampSize(w, h, left, top, corner) {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const topMin = minTop();
     const maxRight = vw - 4;
     const maxBottom = vh - 4;
+    const movesLeft = corner === "nw" || corner === "sw";
+    const movesTop = corner === "nw" || corner === "ne";
+    const rightEdge = left + w;
+    const bottomEdge = top + h;
     let L = left;
     let T = top;
-    w = Math.max(MIN_W, w);
-    h = Math.max(MIN_H, h);
+    if (w < MIN_W) {
+      w = MIN_W;
+      if (movesLeft) L = rightEdge - MIN_W;
+    }
+    if (h < MIN_H) {
+      h = MIN_H;
+      if (movesTop) T = bottomEdge - MIN_H;
+    }
     if (L + w > maxRight) L = maxRight - w;
     if (T + h > maxBottom) T = maxBottom - h;
     if (L < 0) {
@@ -153,7 +167,7 @@
       el.style.top = c.top + "px";
       el.style.right = "auto";
       el.style.bottom = "auto";
-      savePos(c.left, c.top);
+      // 位置持久化交给 applyPos / 拖拽 / 缩放收尾，避免展开时覆盖面板已存位置。
     }
   }
 
@@ -168,7 +182,7 @@
     return false;
   }
 
-  function makeDraggable(el, handle) {
+  function makeDraggable(el, handle, posKey) {
     let startX = 0;
     let startY = 0;
     let baseX = 0;
@@ -209,7 +223,8 @@
       el.style.top = c.y + "px";
       el.style.right = "auto";
       el.style.bottom = "auto";
-      savePos(c.x, c.y);
+      savePos(posKey, c.x, c.y);
+      state.manipulating = false;
     };
 
     const onDown = (ev) => {
@@ -217,7 +232,8 @@
       if (ev.button !== 0) return;
       if (ev.target.closest && ev.target.closest(".ccm-ts-close")) return;
       ev.stopPropagation();
-      const p = loadPos();
+      state.manipulating = true;
+      const p = loadPos(posKey);
       const rect = el.getBoundingClientRect();
       baseX = p ? p.x : rect.left;
       baseY = p ? p.y : rect.top;
@@ -237,7 +253,8 @@
     handle.addEventListener("mousedown", onDown);
   }
 
-  function makeResizable(el, handle) {
+  function makeResizable(el, handle, corner) {
+    corner = corner || "se";
     let startX = 0;
     let startY = 0;
     let baseW = 0;
@@ -249,7 +266,30 @@
     const onMove = (ev) => {
       if (!resizing) return;
       ev.stopPropagation();
-      const c = clampSize(baseW + (ev.clientX - startX), baseH + (ev.clientY - startY), baseLeft, baseTop);
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      let w = baseW;
+      let h = baseH;
+      let L = baseLeft;
+      let T = baseTop;
+      if (corner === "nw") {
+        w = baseW - dx;
+        h = baseH - dy;
+        L = baseLeft + dx;
+        T = baseTop + dy;
+      } else if (corner === "ne") {
+        w = baseW + dx;
+        h = baseH - dy;
+        T = baseTop + dy;
+      } else if (corner === "sw") {
+        w = baseW - dx;
+        h = baseH + dy;
+        L = baseLeft + dx;
+      } else {
+        w = baseW + dx;
+        h = baseH + dy;
+      }
+      const c = clampSize(w, h, L, T, corner);
       el.style.width = c.w + "px";
       el.style.height = c.h + "px";
       el.style.left = c.left + "px";
@@ -267,9 +307,11 @@
       window.removeEventListener("pointercancel", finish);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", finish);
+      state.manipulating = false;
+      fitPanelHeight(el);
       const rect = el.getBoundingClientRect();
       saveSize(Math.round(rect.width), Math.round(rect.height));
-      savePos(Math.round(rect.left), Math.round(rect.top));
+      savePos(POS_STORAGE_KEY, Math.round(rect.left), Math.round(rect.top));
     };
 
     const onDown = (ev) => {
@@ -277,6 +319,7 @@
       if (ev.button !== 0) return;
       ev.stopPropagation();
       ev.preventDefault();
+      state.manipulating = true;
       const rect = el.getBoundingClientRect();
       baseLeft = rect.left;
       baseTop = rect.top;
@@ -321,7 +364,7 @@
   background: rgba(18, 18, 22, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 10px 12px 28px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
   user-select: none;
 }
@@ -340,6 +383,8 @@
 }
 #${ROOT_ID} .ccm-ts-header:active { cursor: grabbing; }
 #${ROOT_ID} .ccm-ts-close {
+  position: relative;
+  z-index: 4;
   border: none;
   background: transparent;
   color: #9a9aa3;
@@ -356,10 +401,11 @@
   align-items: baseline;
   gap: 8px;
 }
-#${ROOT_ID} .ccm-ts-label { color: #9a9aa3; }
+#${ROOT_ID} .ccm-ts-label { color: #9a9aa3; white-space: nowrap; }
 #${ROOT_ID} .ccm-ts-val { font-weight: 600; white-space: nowrap; }
 #${ROOT_ID} .ccm-ts-last { color: #ffd479; }
 #${ROOT_ID} .ccm-ts-sub { color: #9a9aa3; font-size: 11px; }
+#${ROOT_ID} .ccm-ts-body, #${ROOT_ID} .ccm-ts-turns, #${ROOT_ID} .ccm-ts-foot, #${ROOT_ID} .ccm-ts-wait { user-select: text; -webkit-user-select: text; }
 #${ROOT_ID} .ccm-ts-turns { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px; }
 #${ROOT_ID} .ccm-ts-turn {
   display: flex;
@@ -369,25 +415,25 @@
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 #${ROOT_ID} .ccm-ts-turn .ccm-ts-snip {
+  flex: 1 1 auto;
+  min-width: 0;
   color: #9a9aa3;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 120px;
 }
+#${ROOT_ID} .ccm-ts-turn > span:first-child { white-space: nowrap; flex-shrink: 0; }
 #${ROOT_ID} .ccm-ts-wait { flex: 1 1 auto; color: #9a9aa3; font-size: 11px; }
-#${ROOT_ID} .ccm-ts-foot { flex-shrink: 0; margin-top: 6px; color: #6f6f78; font-size: 10.5px; }
+#${ROOT_ID} .ccm-ts-foot { position: absolute; left: 12px; right: 12px; bottom: 10px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #6f6f78; font-size: 10.5px; background: rgba(18, 18, 22, 0.92); z-index: 2; }
 #${ROOT_ID} .ccm-ts-resize {
   position: absolute;
-  right: 0;
-  bottom: 0;
   width: 14px;
   height: 14px;
-  cursor: nwse-resize;
   touch-action: none;
   z-index: 3;
 }
-#${ROOT_ID} .ccm-ts-resize::after {
+#${ROOT_ID} .ccm-ts-resize-se { right: 0; bottom: 0; cursor: nwse-resize; }
+#${ROOT_ID} .ccm-ts-resize-se::after {
   content: "";
   position: absolute;
   right: 3px;
@@ -395,6 +441,39 @@
   width: 5px;
   height: 5px;
   border-right: 2px solid rgba(255, 255, 255, 0.35);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+}
+#${ROOT_ID} .ccm-ts-resize-nw { left: 0; top: 0; cursor: nwse-resize; }
+#${ROOT_ID} .ccm-ts-resize-nw::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 5px;
+  height: 5px;
+  border-left: 2px solid rgba(255, 255, 255, 0.35);
+  border-top: 2px solid rgba(255, 255, 255, 0.35);
+}
+#${ROOT_ID} .ccm-ts-resize-ne { right: 0; top: 0; cursor: nesw-resize; }
+#${ROOT_ID} .ccm-ts-resize-ne::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 5px;
+  height: 5px;
+  border-right: 2px solid rgba(255, 255, 255, 0.35);
+  border-top: 2px solid rgba(255, 255, 255, 0.35);
+}
+#${ROOT_ID} .ccm-ts-resize-sw { left: 0; bottom: 0; cursor: nesw-resize; }
+#${ROOT_ID} .ccm-ts-resize-sw::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  border-left: 2px solid rgba(255, 255, 255, 0.35);
   border-bottom: 2px solid rgba(255, 255, 255, 0.35);
 }
 #${MINI_ID} {
@@ -467,15 +546,19 @@
           <div class="ccm-ts-row"><span class="ccm-ts-label">本轮</span><span class="ccm-ts-val ccm-ts-last">--</span></div>
           <div class="ccm-ts-sub ccm-ts-io" style="text-align:right"></div>
           <div class="ccm-ts-row"><span class="ccm-ts-label">会话累计</span><span class="ccm-ts-val ccm-ts-session">--</span></div>
+          <div class="ccm-ts-sub ccm-ts-session-io" style="text-align:right"></div>
           <div class="ccm-ts-row"><span class="ccm-ts-label">请求次数</span><span class="ccm-ts-val ccm-ts-reqs">--</span></div>
           <div class="ccm-ts-row ccm-ts-ctx-row"><span class="ccm-ts-label">上下文窗口</span><span class="ccm-ts-val ccm-ts-ctx">--</span></div>
         </div>
       </div>
       <div class="ccm-ts-turns"></div>
       <div class="ccm-ts-foot"></div>
-      <div class="ccm-ts-resize" title="拖动调整大小"></div>`;
+      <div class="ccm-ts-resize ccm-ts-resize-se" title="拖动调整大小"></div>
+      <div class="ccm-ts-resize ccm-ts-resize-nw" title="拖动调整大小"></div>
+      <div class="ccm-ts-resize ccm-ts-resize-ne" title="拖动调整大小"></div>
+      <div class="ccm-ts-resize ccm-ts-resize-sw" title="拖动调整大小"></div>`;
     const header = root.querySelector(".ccm-ts-header");
-    if (header) makeDraggable(root, header);
+    if (header) makeDraggable(root, header, POS_STORAGE_KEY);
     const closeBtn = root.querySelector(".ccm-ts-close");
     if (closeBtn) {
       closeBtn.addEventListener("click", (ev) => {
@@ -485,12 +568,36 @@
         render();
       });
     }
-    const resize = root.querySelector(".ccm-ts-resize");
-    if (resize) makeResizable(root, resize);
+    for (const corner of ["se", "nw", "ne", "sw"]) {
+      const resize = root.querySelector(".ccm-ts-resize-" + corner);
+      if (resize) makeResizable(root, resize, corner);
+    }
   }
 
   function setText(el, text) {
     if (el) el.textContent = text;
+  }
+
+  // Grow-only height fit: top summary + bottom footer must always stay fully
+  // visible, so when the summary wraps taller at narrow widths the panel grows
+  // instead of clipping them. Never runs mid-drag/resize.
+  function fitPanelHeight(root) {
+    if (state.manipulating) return;
+    const top = root.querySelector(".ccm-ts-top");
+    if (!top) return;
+    const needed = top.offsetHeight + 56;
+    if (needed <= root.offsetHeight) return;
+    const h = Math.min(needed, Math.max(120, window.innerHeight - minTop() - 8));
+    if (h > 300) root.style.maxHeight = "none";
+    root.style.height = h + "px";
+    // Growing may push the panel past the window edge (e.g. bottom-left docked):
+    // reuse the boundary clamp so it always stays inside the Codex window.
+    const rect = root.getBoundingClientRect();
+    const c = clampPos(root, rect.left, rect.top);
+    root.style.left = c.x + "px";
+    root.style.top = c.y + "px";
+    root.style.right = "auto";
+    root.style.bottom = "auto";
   }
 
   function refresh(root) {
@@ -504,8 +611,8 @@
       if (wait) wait.style.display = "";
       if (body) body.style.display = "none";
       if (turns) turns.style.display = "none";
-      if (foot) foot.style.display = "none";
       setText(foot, "");
+      fitPanelHeight(root);
       return;
     }
     if (wait) wait.style.display = "none";
@@ -527,17 +634,30 @@
       }
     }
     setText(root.querySelector(".ccm-ts-session"), fmtShort(d.sessionTotal) + " tokens");
+    const sio = root.querySelector(".ccm-ts-session-io");
+    if (sio) {
+      if (d.sessionInput != null) {
+        sio.style.display = "";
+        const cached = d.sessionCached != null ? d.sessionCached : null;
+        sio.textContent =
+          "输入 " + fmtShort(d.sessionInput) +
+          (cached != null ? "（缓存命中 " + fmtShort(cached) + "，未命中 " + fmtShort(Math.max(0, (d.sessionInput || 0) - cached)) + "）" : "") +
+          " + 输出 " + fmtShort(d.sessionOutput);
+      } else {
+        sio.style.display = "none";
+      }
+    }
     setText(root.querySelector(".ccm-ts-reqs"), fmtInt(d.requestCount));
     const ctxRow = root.querySelector(".ccm-ts-ctx-row");
     if (ctxRow) {
       if (d.modelContextWindow) {
         ctxRow.style.display = "";
-        setText(root.querySelector(".ccm-ts-ctx"), fmtShort(d.modelContextWindow));
+        setText(root.querySelector(".ccm-ts-ctx"), fmtShort(d.contextUsed) + " / " + fmtShort(d.modelContextWindow));
       } else {
         ctxRow.style.display = "none";
       }
     }
-    const recent = d.turns ? d.turns.slice(-8).reverse() : [];
+    const recent = d.turns ? [...d.turns].reverse() : [];
     const key = (d.turns ? d.turns.length : 0) + "|" + recent.map((t) => t.startLabel + "|" + t.total + "|" + t.input + "|" + t.output + "|" + (t.cached || 0)).join("~");
     if (key !== state.lastTurnsKey) {
       state.lastTurnsKey = key;
@@ -557,6 +677,7 @@
       }
     }
     setText(foot, "更新于" + clock(d.updatedAt) + " · 数据来自本地会话记录");
+    fitPanelHeight(root);
   }
 
   function render() {
@@ -580,33 +701,36 @@
     if (!state.skeletonBuilt) {
       buildSkeleton(root);
       state.skeletonBuilt = true;
+      // Geometry is applied once here (panel creation / expand), and again on
+      // window resize and at drag/resize release. It is deliberately NOT
+      // applied on every data push so an in-progress drag/resize never jumps
+      // back to the stored size/position.
+      applySize(root);
+      applyPos(root, POS_STORAGE_KEY);
     }
-    applySize(root);
-    applyPos(root);
     refresh(root);
   }
   function ensureMini() {
-    if (state.mini || !isClosed()) return;
-    const existing = document.getElementById(MINI_ID);
-    if (existing) {
-      state.mini = existing;
-      return;
+    if (!isClosed()) return;
+    let mini = state.mini || document.getElementById(MINI_ID);
+    if (!mini) {
+      mini = document.createElement("div");
+      mini.id = MINI_ID;
+      mini.title = "显示 Token 消耗面板（拖动可移动位置）";
+      mini.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (wasJustDragged(mini)) return;
+        setClosed(false);
+        render();
+      });
+      makeDraggable(mini, mini, MINI_POS_STORAGE_KEY);
+      document.body.appendChild(mini);
+      applyPos(mini, MINI_POS_STORAGE_KEY);
     }
-    const mini = document.createElement("div");
-    mini.id = MINI_ID;
+    state.mini = mini;
+    // Keep the collapsed button's total in sync with every data push.
     const d = state.data;
     mini.textContent = "Token " + (d ? fmtShort(d.sessionTotal) : "");
-    mini.title = "显示 Token 消耗面板（拖动可移动位置）";
-    mini.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      if (wasJustDragged(mini)) return;
-      setClosed(false);
-      render();
-    });
-    makeDraggable(mini, mini);
-    document.body.appendChild(mini);
-    applyPos(mini);
-    state.mini = mini;
   }
 
   window.addEventListener("ccm-token-spend", () => {
@@ -634,8 +758,8 @@
   window.addEventListener("resize", () => {
     if (state.root) {
       applySize(state.root);
-      applyPos(state.root);
+      applyPos(state.root, POS_STORAGE_KEY);
     }
-    if (state.mini) applyPos(state.mini);
+    if (state.mini) applyPos(state.mini, MINI_POS_STORAGE_KEY);
   });
 })();

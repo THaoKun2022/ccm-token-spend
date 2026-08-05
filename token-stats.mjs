@@ -78,6 +78,11 @@ function parseFile(file) {
         output: Number.isFinite(last.output_tokens) ? last.output_tokens : null,
         cached: Number.isFinite(last.cached_input_tokens) ? last.cached_input_tokens : 0,
         lastTotal: Number.isFinite(last.total_tokens) ? last.total_tokens : null,
+        totalInfo: {
+          input: info.total_token_usage && Number.isFinite(info.total_token_usage.input_tokens) ? info.total_token_usage.input_tokens : null,
+          cached: info.total_token_usage && Number.isFinite(info.total_token_usage.cached_input_tokens) ? info.total_token_usage.cached_input_tokens : 0,
+          output: info.total_token_usage && Number.isFinite(info.total_token_usage.output_tokens) ? info.total_token_usage.output_tokens : null,
+        },
       });
       if (Number.isFinite(info.model_context_window)) modelContextWindow = info.model_context_window;
     } else if (p.type === "user_message") {
@@ -122,6 +127,7 @@ function buildStats(parsed) {
     if (c.lastTotal != null) t.total += c.lastTotal;
   }
   const lastCount = counts[counts.length - 1];
+  const lastTotalInfo = lastCount && lastCount.totalInfo;
   return {
     threadId: parsed.threadId,
     file: parsed.file,
@@ -129,6 +135,15 @@ function buildStats(parsed) {
     modelContextWindow: parsed.modelContextWindow,
     requestCount: counts.length,
     sessionTotal: lastCount && lastCount.total != null ? lastCount.total : null,
+    sessionInput: lastTotalInfo && lastTotalInfo.input != null ? lastTotalInfo.input : null,
+    sessionCached: lastTotalInfo && lastTotalInfo.cached != null ? lastTotalInfo.cached : null,
+    sessionOutput: lastTotalInfo && lastTotalInfo.output != null ? lastTotalInfo.output : null,
+    contextUsed:
+      lastCount && lastCount.lastTotal != null
+        ? parsed.modelContextWindow != null
+          ? Math.min(lastCount.lastTotal, parsed.modelContextWindow)
+          : lastCount.lastTotal
+        : null,
     turns: turns.map((t) => ({
       start: t.start,
       startLabel: t.startLabel,
@@ -169,7 +184,15 @@ function printStats(stats, { detail = false } = {}) {
   console.log("文件: " + stats.file);
   if (stats.modelContextWindow) console.log("上下文窗口: " + fmtInt(stats.modelContextWindow) + " tokens");
   console.log("请求次数: " + fmtInt(stats.requestCount));
-  console.log("会话累计消耗: " + fmtInt(stats.sessionTotal) + " tokens (" + fmtShort(stats.sessionTotal) + ")");
+  const sCached = stats.sessionCached != null ? stats.sessionCached : null;
+  console.log(
+    "会话累计消耗: " + fmtInt(stats.sessionTotal) + " tokens (" + fmtShort(stats.sessionTotal) + ")" +
+      (stats.sessionInput != null
+        ? "  输入 " + fmtShort(stats.sessionInput) +
+          (sCached != null ? "（缓存命中 " + fmtShort(sCached) + "，未命中 " + fmtShort(Math.max(0, stats.sessionInput - sCached)) + "）" : "") +
+          " + 输出 " + fmtShort(stats.sessionOutput)
+        : ""),
+  );
   console.log("");
   console.log("每轮对话消耗:");
   let i = 1;
@@ -193,6 +216,10 @@ function payloadFor(stats) {
     modelContextWindow: stats.modelContextWindow,
     requestCount: stats.requestCount,
     sessionTotal: stats.sessionTotal,
+    sessionInput: stats.sessionInput,
+    sessionCached: stats.sessionCached,
+    sessionOutput: stats.sessionOutput,
+    contextUsed: stats.contextUsed,
     turns: stats.turns.map((t) => ({
       startLabel: t.startLabel,
       snippet: t.snippet,
@@ -235,11 +262,163 @@ async function cdpEval(port, expression) {
   });
 }
 
+// A2: 内置会话 ID 检测，完全自研，不依赖任何外部脚本。
+// 从页面 DOM / React fiber 读取当前会话 ID；侧边栏收起时沿用最后确认的 ID。
+// 逻辑参考开源实现（MIT）的 readActiveConversationId。
+// Sentinel returned when the user is on a brand-new blank conversation that has
+// no messages yet: the panel should show zeros instead of the previous data.
+const NEW_THREAD = "__new_blank__";
+
 async function activeThreadId(port) {
   try {
     const id = await cdpEval(
       port,
-      `(function(){ try { var s = window.__codexContextMeter && window.__codexContextMeter.getState ? window.__codexContextMeter.getState() : null; return (s && s.activeConversationId) || null; } catch(e) { return null; } })()`,
+      `(function () {
+        function norm(v) {
+          if (v == null) return null;
+          if (typeof v !== "string" && typeof v !== "number") return null;
+          var text = String(v).trim();
+          if (!text) return null;
+          var cn = /client-new-thread:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(text);
+          if (cn) return "client-new-thread:" + cn[1].toLowerCase();
+          var m = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(text);
+          if (m) return m[0].toLowerCase();
+          return text.replace(/^[a-z]+:/i, "").toLowerCase();
+        }
+        function elConv(el) {
+          if (!el || el.nodeType !== 1) return null;
+          for (var n = el; n && n.nodeType === 1; n = n.parentElement) {
+            var v = n.getAttribute("data-app-action-sidebar-thread-id") || n.getAttribute("data-thread-id") || n.getAttribute("data-conversation-id");
+            var c = norm(v);
+            if (c) return c;
+          }
+          return null;
+        }
+        function hasConversationSurface() {
+          return !!(document.querySelector('[data-thread-find-target="conversation"]') ||
+                    document.querySelector('[data-thread-find-composer="true"]') ||
+                    document.querySelector('[data-codex-composer="true"]') ||
+                    document.querySelector('[data-app-shell-main-content-layout*="thread"]'));
+        }
+        function confirm(id) {
+          window.__ccmTokenSpendActiveId = { id: id, at: Date.now() };
+          return id;
+        }
+        var activeSels = [
+          '[aria-current="page"][data-app-action-sidebar-thread-id]',
+          '[data-app-action-sidebar-thread-active="true"][data-app-action-sidebar-thread-id]',
+          '[aria-selected="true"][data-app-action-sidebar-thread-id]',
+          '[aria-current="page"]',
+          '[data-app-action-sidebar-thread-active="true"]',
+          '[aria-selected="true"]'
+        ];
+        // Brand-new blank conversation (no messages yet): no active sidebar
+        // thread and the main conversation area is gone. Return the NEW_THREAD
+        // sentinel so the watcher shows zeros instead of the previous data.
+        // Note: only a sidebar *thread* with active state counts — other
+        // elements (e.g. folders) may also carry aria-current="page".
+        try {
+          var activeThreadNow = document.querySelector(
+            '[aria-current="page"][data-app-action-sidebar-thread-id],' +
+            '[data-app-action-sidebar-thread-active="true"][data-app-action-sidebar-thread-id],' +
+            '[aria-selected="true"][data-app-action-sidebar-thread-id]'
+          );
+          if (!activeThreadNow && !document.querySelector('main [data-thread-find-target="conversation"]') && hasConversationSurface()) {
+            return "${NEW_THREAD}";
+          }
+        } catch (e) {}
+        try {
+          var sels = activeSels;
+          for (var i = 0; i < sels.length; i++) {
+            var c = elConv(document.querySelector(sels[i]));
+            if (c) return confirm(c);
+          }
+        } catch (e) {}
+        try {
+          // React fiber 兜底扫描较慢，最多每 2 秒做一次。
+          var now = Date.now();
+          var cache = window.__ccmTokenSpendActiveIdCache;
+          if (cache && cache.id && now - cache.at < 2000) {
+            // The main conversation area must still be present, otherwise the
+            // cached id is stale (user moved to a new blank conversation).
+            if (document.querySelector('main [data-thread-find-target="conversation"]')) return cache.id;
+          }
+          var seen = new WeakSet();
+          function scan(value, depth) {
+            if (!value || typeof value !== "object" || depth < 0) return null;
+            if (seen.has(value)) return null;
+            seen.add(value);
+            var idKeys = ["conversationId", "localConversationId", "threadId", "id", "key"];
+            for (var k = 0; k < idKeys.length; k++) {
+              try {
+                var cand = value[idKeys[k]];
+                var nm = norm(cand);
+                if (nm && /[0-9a-f]{8}-/.test(nm)) return nm;
+              } catch (e) {}
+            }
+            if (value.nodeType === 1) {
+              var ec = elConv(value);
+              if (ec) return ec;
+            }
+            if (Array.isArray(value)) {
+              var lim = Math.min(value.length, 40);
+              for (var i2 = 0; i2 < lim; i2++) {
+                var r2 = scan(value[i2], depth - 1);
+                if (r2) return r2;
+              }
+              return null;
+            }
+            if (value instanceof Map) {
+              var i3 = 0;
+              for (var pair of value) {
+                if (i3 >= 40) break;
+                var r3 = scan(pair[1], depth - 1);
+                if (r3) return r3;
+                i3 += 1;
+              }
+              return null;
+            }
+            var keyRe = /^(?:props|children|memoizedProps|pendingProps|memoizedState|stateNode|child|sibling|return|alternate|value|current|context|node|chain|conversationId|localConversationId|threadId|id|key|params|thread|conversation)$/;
+            for (var key in value) {
+              if (!keyRe.test(key)) continue;
+              try {
+                var child = value[key];
+                if (child === value) continue;
+                var r4 = scan(child, depth - 1);
+                if (r4) return r4;
+              } catch (e) {}
+            }
+            return null;
+          }
+          var anchors = [
+            document.querySelector("main"),
+            document.querySelector('[data-thread-find-target="conversation"]'),
+            document.querySelector('[data-thread-find-composer="true"]'),
+            document.querySelector('[data-codex-composer="true"]'),
+            document.getElementById("root")
+          ];
+          for (var a = 0; a < anchors.length; a++) {
+            var anchor = anchors[a];
+            if (!anchor) continue;
+            var direct = elConv(anchor);
+            if (direct) { window.__ccmTokenSpendActiveIdCache = { id: direct, at: now }; return confirm(direct); }
+            for (var pk in anchor) {
+              if (!/^__react(?:Props|Fiber|Container)\$/.test(pk)) continue;
+              try {
+                var r5 = scan(anchor[pk], 14);
+                if (r5) { window.__ccmTokenSpendActiveIdCache = { id: r5, at: now }; return confirm(r5); }
+              } catch (e) {}
+            }
+          }
+          window.__ccmTokenSpendActiveIdCache = { id: null, at: now };
+        } catch (e) {}
+        // 侧边栏收起时 active/current 节点会消失；主会话区仍在时沿用最后确认的 ID。
+        try {
+          var last = window.__ccmTokenSpendActiveId;
+          if (last && last.id && document.querySelector('main [data-thread-find-target="conversation"]') && hasConversationSurface()) return last.id;
+        } catch (e) {}
+        return null;
+      })()`,
     );
     if (id) return id;
   } catch {}
@@ -277,14 +456,103 @@ function resolveAnyFile() {
 // Stats for a conversation that exists but has no data yet (shows zeros).
 function emptyStats(threadId, file) {
   return {
-    threadId,
+    threadId: threadId || "",
     file: file || "",
     date: file ? fileDate(file) : "",
     modelContextWindow: null,
     requestCount: 0,
     sessionTotal: 0,
+    sessionInput: 0,
+    sessionCached: 0,
+    sessionOutput: 0,
+    contextUsed: 0,
     turns: [],
   };
+}
+
+// ---- client-new-thread 占位 ID 映射 ----
+// 新建对话在侧边栏里是 local:client-new-thread:<uuid> 占位 ID，而会话文件用的是真实 ID。
+// 遇到占位 ID 时，把「占位 ID 首次出现之后新建的会话文件」学习为该对话的真实 ID，
+// 并持久化到本地，避免监控进程重启后丢失映射。
+const CLIENT_MAP_DIR = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+const CLIENT_MAP_FILE = path.join(CLIENT_MAP_DIR, "ccm-token-spend", "client-thread-map.json");
+
+let clientState = { clientMap: {}, activatedAt: {} };
+try {
+  const raw = fs.readFileSync(CLIENT_MAP_FILE, "utf8");
+  const o = JSON.parse(raw);
+  clientState = {
+    clientMap: o && typeof o.clientMap === "object" ? o.clientMap : {},
+    activatedAt: o && typeof o.activatedAt === "object" ? o.activatedAt : {},
+  };
+} catch {}
+
+function saveClientState() {
+  try {
+    fs.mkdirSync(path.dirname(CLIENT_MAP_FILE), { recursive: true });
+    fs.writeFileSync(CLIENT_MAP_FILE, JSON.stringify(clientState));
+  } catch {}
+}
+
+function isClientNewThread(id) {
+  return typeof id === "string" && id.indexOf("client-new-thread:") === 0;
+}
+
+function clientThreadUuid(id) {
+  const m = /^client-new-thread:([0-9a-f-]+)$/i.exec(id);
+  return m ? m[1] : id;
+}
+
+// 占位对话首次出现之后新建（首次提交）的会话文件，用来学习 占位ID -> 真实ID。
+function findNewestClientFileSince(ts, excludeThreadId) {
+  const files = findRolloutFiles();
+  let best = null;
+  let bestTime = -1;
+  const slack = 1000;
+  for (const f of files) {
+    if (excludeThreadId && threadIdOf(f) === excludeThreadId) continue;
+    try {
+      const st = fs.statSync(f);
+      const created = st.birthtimeMs && st.birthtimeMs > 0 ? st.birthtimeMs : st.ctimeMs;
+      if (created >= ts - slack && st.mtimeMs > bestTime) {
+        bestTime = st.mtimeMs;
+        best = f;
+      }
+    } catch {}
+  }
+  return best ? threadIdOf(best) : null;
+}
+
+// 兜底：修复前已存在、已有内容的占位对话，其文件创建时间早于激活时间。
+// 这时学习「最新且未被其他占位对话认领」的会话文件。
+function findNewestUnclaimedFile(excludeThreadId, claimedSet) {
+  const files = findRolloutFiles();
+  let best = null;
+  let bestTime = -1;
+  for (const f of files) {
+    const tid = threadIdOf(f);
+    if (!tid) continue;
+    if (excludeThreadId && tid === excludeThreadId) continue;
+    if (claimedSet && claimedSet.has(tid)) continue;
+    try {
+      const st = fs.statSync(f);
+      if (st.mtimeMs > bestTime) {
+        bestTime = st.mtimeMs;
+        best = f;
+      }
+    } catch {}
+  }
+  return best ? threadIdOf(best) : null;
+}
+
+// 页面里是否有真实会话内容（空白新对话没有 conversation surface）。
+async function hasConversationContent(port) {
+  try {
+    const v = await cdpEval(port, `!!document.querySelector('main [data-thread-find-target="conversation"]')`);
+    return v === true || v === "true";
+  } catch {
+    return false;
+  }
 }
 
 function parseArgs(argv) {
@@ -327,26 +595,72 @@ async function main() {
   if (args.watch) {
     let lastKey = "";
     let lastPushAt = 0;
+    let lastRealThreadId = "";
     console.log("监控中… 每 1 秒刷新" + (args.cdp ? "，并通过调试端口写入 Codex 页面" : "") + " (Ctrl+C 退出)");
     for (;;) {
       try {
-        const thread = args.thread || (await activeThreadId(args.port));
-        let file = resolveFile(thread);
-        let parsed = file ? parseFile(file) : null;
-        let stats = null;
-        if (parsed) {
-          stats = buildStats(parsed);
-        } else if (thread) {
-          // Active conversation exists but has no data yet -> show zeros.
-          stats = emptyStats(thread, file);
-        } else {
-          const fallback = resolveAnyFile();
-          if (fallback) {
-            file = fallback;
-            stats = buildStats(parseFile(fallback));
+        const rawThread = args.thread || (await activeThreadId(args.port));
+        let thread = rawThread;
+        let threadIsClientNew = false;
+        if (isClientNewThread(rawThread)) {
+          threadIsClientNew = true;
+          const ph = clientThreadUuid(rawThread);
+          if (!(ph in clientState.activatedAt)) {
+            clientState.activatedAt[ph] = Date.now();
+            saveClientState();
+          }
+          const learned = clientState.clientMap[ph];
+          if (learned) {
+            thread = learned;
+          } else {
+            // 排除上一个真实对话的文件，避免刚离开旧对话的瞬间误关联。
+            const cand = findNewestClientFileSince(clientState.activatedAt[ph], lastRealThreadId);
+            if (cand) {
+              clientState.clientMap[ph] = cand;
+              saveClientState();
+              thread = cand;
+            } else if (await hasConversationContent(port)) {
+              // 修复前已存在、已有内容的占位对话：文件创建时间早于激活时间，
+              // 用「最新且未被认领的会话文件」兜底学习。
+              const claimed = new Set(Object.values(clientState.clientMap));
+              const fb = findNewestUnclaimedFile(lastRealThreadId, claimed);
+              if (fb) {
+                clientState.clientMap[ph] = fb;
+                saveClientState();
+                thread = fb;
+              } else {
+                thread = null;
+              }
+            } else {
+              thread = null; // 仍是空白新对话 -> 显示 0
+            }
           }
         }
+        let file = null;
+        let parsed = null;
+        let stats = null;
+        if (thread && thread !== NEW_THREAD) {
+          file = resolveFile(thread);
+          parsed = file ? parseFile(file) : null;
+          if (parsed) {
+            stats = buildStats(parsed);
+          } else {
+            // Active conversation exists but has no data yet -> show zeros.
+            stats = emptyStats(thread, file);
+          }
+        } else if (thread === NEW_THREAD) {
+          // Brand-new blank conversation, nothing sent yet -> show zeros.
+          stats = emptyStats(null, null);
+        } else if (threadIsClientNew) {
+          // 占位对话还没有对应文件（仍是空白）-> 显示 0，不回退到上一个对话。
+          stats = emptyStats(null, null);
+        } else {
+          // 启动加载期（页面还没加载完、读不到对话 ID）：显示 0，
+          // 等加载完成识别出当前对话后再显示真实数据，不回退到上一个对话。
+          stats = emptyStats(null, null);
+        }
         if (stats) {
+          if (thread && thread !== NEW_THREAD && stats.threadId) lastRealThreadId = stats.threadId;
           const key = `${stats.threadId}|${stats.requestCount}|${stats.sessionTotal}`;
           const changed = key !== lastKey;
           const heartbeat = args.cdp && Date.now() - lastPushAt > 1000;
@@ -390,7 +704,28 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error("错误: " + (e && e.message ? e.message : e));
-  process.exit(1);
-});
+if (!process.env.CCM_TOKENS_AS_MODULE) {
+  main().catch((e) => {
+    console.error("错误: " + (e && e.message ? e.message : e));
+    process.exit(1);
+  });
+}
+
+export {
+  SESSIONS_DIR,
+  CLIENT_MAP_FILE,
+  clientState,
+  saveClientState,
+  isClientNewThread,
+  clientThreadUuid,
+  findNewestClientFileSince,
+  findNewestUnclaimedFile,
+  hasConversationContent,
+  findRolloutFiles,
+  threadIdOf,
+  resolveFile,
+  resolveAnyFile,
+  emptyStats,
+  parseFile,
+  buildStats,
+};
