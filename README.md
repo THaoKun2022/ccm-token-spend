@@ -2,6 +2,8 @@
 
 [English](README.en.md) | [简体中文](README.md)
 
+> 🤖 如果你是 AI 编码助手（Codex / Claude / Copilot 等），请直接阅读 [README.agent.md](README.agent.md) —— 专为 Agent 编写的安装指南。
+
 在 Codex / ChatGPT **桌面版**界面右下角显示「每个对话 / 每轮对话」的 token 消耗量：本轮消耗、会话累计、请求次数、上下文窗口（已用/总量）、输入缓存命中拆分、最近轮次列表，数据约 **1 秒**实时刷新。
 
 ![面板展开](panel-preview.png)
@@ -13,14 +15,14 @@
 - **操作系统：仅 Windows**（开发与测试基于 Windows 10 22H2；macOS / Linux 未支持，开机自启守护为 Windows 专属）。
 - **客户端：Codex / ChatGPT 桌面版**（不支持 codex CLI）。
 - **必须安装 Codex++**（负责注入面板脚本并开放调试端口 9229）。
-- **Node.js ≥ 18**（使用 node-version），或**无需 Node**（使用 exe-version）。
+- **Node.js ≥ 22**（使用 node-version），或**无需 Node**（使用 exe-version）。
 
 ## ⚠️ 使用前提（请先按顺序确认）
 
 1. **仅支持 Codex / ChatGPT 桌面版，不支持 codex CLI。**
 2. **必须安装 Codex++**（负责把面板脚本注入页面，并通过调试端口 9229 推送数据）。没装 Codex++ 的话，本工具不适用。
 3. **监控程序二选一：**
-   - 电脑上**已安装 Node.js（≥ 18）** → 使用 `node-version`（脚本方式，体积小）；
+   - 电脑上**已安装 Node.js（≥ 22）** → 使用 `node-version`（脚本方式，体积小）；
    - 电脑上**没有 Node.js** → 使用 `exe-version`（免安装、免环境，体积约 55MB）。
 
 ```

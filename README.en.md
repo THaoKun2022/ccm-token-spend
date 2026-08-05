@@ -2,6 +2,8 @@
 
 [简体中文](README.md) | [English](README.en.md)
 
+> 🤖 If you are an AI coding assistant (Codex / Claude / Copilot / etc.), read [README.agent.md](README.agent.md) - an installation guide written specifically for agents.
+
 Shows per-thread / per-turn token usage in the bottom-right corner of the Codex / ChatGPT **desktop** app: current-turn usage, session totals, request count, context window (used/total), cached vs. uncached input split, and a recent-turns list. Data refreshes roughly every **1 second**.
 
 ![Panel expanded](panel-preview.png)
@@ -13,14 +15,14 @@ Shows per-thread / per-turn token usage in the bottom-right corner of the Codex 
 - **OS: Windows only** (developed and tested on Windows 10 22H2; macOS / Linux are not supported, and the auto-start daemon is Windows-specific).
 - **Client: Codex / ChatGPT desktop app** (codex CLI is not supported).
 - **Codex++ is required** (it injects the panel script into the page and opens debug port 9229).
-- **Node.js >= 18** (node-version), or **no Node needed** (exe-version).
+- **Node.js >= 22** (node-version), or **no Node needed** (exe-version).
 
 ## ⚠️ Prerequisites (Check in Order)
 
 1. **Codex / ChatGPT desktop app only; codex CLI is not supported.**
 2. **Codex++ must be installed** (it injects the panel script into the page and pushes data through debug port 9229). Without Codex++, this tool will not work.
 3. **Choose one monitor program:**
-   - **Node.js (>= 18) installed** -> use `node-version` (script-based, small footprint);
+   - **Node.js (>= 22) installed** -> use `node-version` (script-based, small footprint);
    - **No Node.js** -> use `exe-version` (no install, no runtime needed, about 55MB).
 
 ```
