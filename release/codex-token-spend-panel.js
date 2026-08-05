@@ -1,5 +1,8 @@
 (() => {
   "use strict";
+  // Guard: only the first injected copy runs (Codex++ may re-inject).
+  if (window.__ccmTokenSpendPanelInstalled) return;
+  window.__ccmTokenSpendPanelInstalled = true;
   // codex-token-spend-panel.js
   // Renders a small floating panel in the Codex page with per-turn / per-conversation
   // token consumption, fed by token-stats.mjs (which reads Codex session logs and
@@ -584,6 +587,11 @@
   }
   function ensureMini() {
     if (state.mini || !isClosed()) return;
+    const existing = document.getElementById(MINI_ID);
+    if (existing) {
+      state.mini = existing;
+      return;
+    }
     const mini = document.createElement("div");
     mini.id = MINI_ID;
     const d = state.data;
