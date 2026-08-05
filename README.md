@@ -1,5 +1,7 @@
 # ccm-token-spend —— Codex 桌面版 Token 消耗统计面板
 
+[English](README.en.md) | [简体中文](README.md)
+
 在 Codex / ChatGPT **桌面版**界面右下角显示「每个对话 / 每轮对话」的 token 消耗量：本轮消耗、会话累计、请求次数、上下文窗口（已用/总量）、输入缓存命中拆分、最近轮次列表，数据约 **1 秒**实时刷新。
 
 ![面板展开](panel-preview.png)

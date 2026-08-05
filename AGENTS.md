@@ -14,6 +14,7 @@
 - `guardian.ps1`：守护进程，负责拉起/重启监控进程。
 - `install-autostart.ps1` / `uninstall-autostart.ps1`：开机自启安装/卸载。
 - `README.md`：说明文档（含测试环境与支持环境说明）。
+- `README.en.md`：英文版说明文档（中文版顶部含语言切换链接）。
 - `release\`：发布目录，含 `exe-version`（打包 exe）、`node-version`（node 运行）、面板脚本、预览图、README。
 - `build\`：打包构建目录（内含 node_modules 与 pkg）。
 
