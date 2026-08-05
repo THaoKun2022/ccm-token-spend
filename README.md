@@ -1,46 +1,59 @@
-# ccm-token-spend 鈥斺€?Codex 妗岄潰鐗?Token 娑堣€楃粺璁￠潰鏉?
-鍦?Codex / ChatGPT **妗岄潰鐗?*鐣岄潰鍙充笅瑙掓樉绀恒€屾瘡涓璇?/ 姣忚疆瀵硅瘽銆嶇殑 token 娑堣€楅噺锛氭湰杞秷鑰椼€佷細璇濈疮璁°€佽姹傛鏁般€佷笂涓嬫枃绐楀彛銆佽緭鍏ョ紦瀛樺懡涓媶鍒嗐€佹渶杩戣疆娆″垪琛紝鏁版嵁绾?**1 绉?*瀹炴椂鍒锋柊銆?
-## 鈿狅笍 浣跨敤鍓嶆彁锛堣鍏堟寜椤哄簭纭锛?
-1. **浠呮敮鎸?Codex / ChatGPT 妗岄潰鐗堬紝涓嶆敮鎸?codex CLI銆?*
-2. **蹇呴』瀹夎 Codex++**锛堣礋璐ｆ妸闈㈡澘鑴氭湰娉ㄥ叆椤甸潰锛屽苟閫氳繃璋冭瘯绔彛 9229 鎺ㄩ€佹暟鎹級銆傛病瑁?Codex++ 鐨勮瘽锛屾湰宸ュ叿涓嶉€傜敤銆?3. **鐩戞帶绋嬪簭浜岄€変竴锛?*
-   - 鐢佃剳涓?*宸插畨瑁?Node.js锛堚墺 18锛?* 鈫?浣跨敤 `node-version`锛堣剼鏈柟寮忥紝浣撶Н灏忥級锛?   - 鐢佃剳涓?*娌℃湁 Node.js** 鈫?浣跨敤 `exe-version`锛堝厤瀹夎銆佸厤鐜锛屼綋绉害 55MB锛夈€?
+# ccm-token-spend —— Codex 桌面版 Token 消耗统计面板
+
+在 Codex / ChatGPT **桌面版**界面右下角显示「每个对话 / 每轮对话」的 token 消耗量：本轮消耗、会话累计、请求次数、上下文窗口、输入缓存命中拆分、最近轮次列表，数据约 **1 秒**实时刷新。
+
+## ⚠️ 使用前提（请先按顺序确认）
+
+1. **仅支持 Codex / ChatGPT 桌面版，不支持 codex CLI。**
+2. **必须安装 Codex++**（负责把面板脚本注入页面，并通过调试端口 9229 推送数据）。没装 Codex++ 的话，本工具不适用。
+3. **监控程序二选一：**
+   - 电脑上**已安装 Node.js（≥ 18）** → 使用 `node-version`（脚本方式，体积小）；
+   - 电脑上**没有 Node.js** → 使用 `exe-version`（免安装、免环境，体积约 55MB）。
+
 ```
-鍒ゆ柇娴佺▼锛?Codex 妗岄潰鐗堬紵 鈹€鈹€鍚︹攢鈹€> 涓嶆敮鎸侊紙CLI 鐢ㄦ埛璇峰嬁缁х画锛?   鈹傛槸
-宸茶 Codex++锛?鈹€鈹€鍚︹攢鈹€> 鍏堝畨瑁?Codex++锛屽惁鍒欎笉鏀寔
-   鈹傛槸
-宸茶 Node.js锛?鈹€鈹€鏄攢鈹€> 鐢?node-version
-   鈹傚惁
-鐢?exe-version
+判断流程：
+Codex 桌面版？ ──否──> 不支持（CLI 用户请勿继续）
+   │是
+已装 Codex++？ ──否──> 先安装 Codex++，否则不支持
+   │是
+已装 Node.js？ ──是──> 用 node-version
+   │否
+用 exe-version
 ```
 
-## 瀹夎锛堜袱涓増鏈€氱敤锛屽彧闇€鍋氫竴娆★級
+## 安装（两个版本通用，只需做一次）
 
-1. 鎶?`codex-token-spend-panel.js` 澶嶅埗鍒?Codex++ 鐨勭敤鎴疯剼鏈洰褰曪細
+1. 把 `codex-token-spend-panel.js` 复制到 Codex++ 的用户脚本目录：
 
    ```powershell
    Copy-Item .\codex-token-spend-panel.js "$env:APPDATA\Codex++\user_scripts\" -Force
    ```
 
-2. **瀹屽叏閫€鍑哄苟閲嶅惎 Codex 妗岄潰鐗?*锛岃鑴氭湰娉ㄥ叆椤甸潰锛堝彸涓嬭搴斿嚭鐜伴潰鏉匡級銆?
-## 杩愯鐩戞帶锛堟瘡娆℃兂鐢ㄦ椂鎵ц锛?
-- **Node 鐗堬細**
+2. **完全退出并重启 Codex 桌面版**，让脚本注入页面（右下角应出现面板）。
+
+## 运行监控（每次想用时执行）
+
+- **Node 版：**
   ```powershell
   cd node-version
   node token-stats.mjs --watch --cdp
   ```
-- **exe 鐗堬細**
+- **exe 版：**
   ```powershell
   cd exe-version
   ccm-token-spend.exe --watch --cdp
   ```
-- 涔熷彲浠ョ洿鎺?*鍙屽嚮**瀵瑰簲鏂囦欢澶归噷鐨?`start-watch.cmd`銆?
-淇濇寔杩欎釜绐楀彛杩愯鍗冲彲銆傞潰鏉垮彸涓婅 `脳` 鍙敹璧蜂负灏忔寜閽紝鐐瑰皬鎸夐挳鎭㈠锛涙爣棰樻爮鍙嫋鍔紝鍙充笅瑙掑彲鎷栨嫿璋冩暣澶у皬銆?
-## 鏁版嵁璇存槑
+- 也可以直接**双击**对应文件夹里的 `start-watch.cmd`。
 
-- 鍙鍙?Codex 鑷繁鐨勬湰鍦颁細璇濇棩蹇楋紙`%USERPROFILE%\.codex\sessions\...\rollout-*.jsonl`锛夛紝**涓嶆秹鍙婁换浣曞瘑閽?*锛岄潰鏉垮彧鏄剧ず鏁板瓧鎽樿銆?- 銆屼細璇濈疮璁°€? 璇ュ璇濇墍鏈夎姹傜殑 billed token 涔嬪拰锛堝惈姣忚疆閲嶅鍙戦€佺殑涓婁笅鏂囷級銆?- 銆屾瘡杞€? 涓€娆＄敤鎴锋秷鎭埌涓嬩竴娆＄敤鎴锋秷鎭箣闂村彂鐢熺殑鎵€鏈夎姹傘€?- 杈撳叆缂撳瓨鎷嗗垎锛歚杈撳叆 X锛堢紦瀛樺懡涓?Y锛屾湭鍛戒腑 Z锛塦锛屽叾涓湭鍛戒腑 = 杈撳叆 鈭?缂撳瓨鍛戒腑锛涙棫鏃ュ織娌℃湁缂撳瓨瀛楁鏃惰嚜鍔ㄦ樉绀轰负 `杈撳叆 X + 杈撳嚭 W`銆?- 鏂板璇濓紙灏氭棤鏁版嵁锛夋樉绀?0锛岃€屼笉鏄€屾殏鏃犳暟鎹€嶃€?
-## 鑷磋阿
+保持这个窗口运行即可。面板右上角 `×` 可收起为小按钮，点小按钮恢复；标题栏可拖动，右下角可拖拽调整大小。
 
-闈㈡澘鐨勩€屽綋鍓嶅璇?ID銆嶆潵鑷紑婧愰」鐩?[codex-context-used-meter](https://github.com/Minghou-Lei/codex-context-used-meter)锛圡IT License锛夋敞鍏ョ殑 `__codexContextMeter`銆傛湭瀹夎璇ヨ剼鏈椂鑷姩闄嶇骇涓烘寜鏈€鏂颁細璇濇枃浠跺垽鏂€
+## 数据说明
+
+- 只读取 Codex 自己的本地会话日志（`%USERPROFILE%\.codex\sessions\...\rollout-*.jsonl`），**不涉及任何密钥**，面板只显示数字摘要。
+- 「会话累计」= 该对话所有请求的 billed token 之和（含每轮重复发送的上下文）。
+- 「每轮」= 一次用户消息到下一次用户消息之间发生的所有请求。
+- 输入缓存拆分：`输入 X（缓存命中 Y，未命中 Z）`，其中未命中 = 输入 − 缓存命中；旧日志没有缓存字段时自动显示为 `输入 X + 输出 W`。
+- 新对话（尚无数据）显示 0，而不是「暂无数据」。
 
 ## 开发者：命令行直接查看（无需面板）
 
@@ -50,3 +63,7 @@ node token-stats.mjs --thread <id>    # 指定对话
 node token-stats.mjs --detail         # 附带每次请求明细
 node token-stats.mjs --all            # 所有对话的累计消耗
 ```
+
+## 致谢
+
+面板的「当前对话 ID」来自开源项目 [codex-context-used-meter](https://github.com/Minghou-Lei/codex-context-used-meter)（MIT License）注入的 `__codexContextMeter`。未安装该脚本时自动降级为按最新会话文件判断。
