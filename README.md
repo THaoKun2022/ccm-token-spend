@@ -131,6 +131,17 @@ npm install          # 首次需要：安装 @yao-pkg/pkg
 - 目前接入的是**第三方 API**，测试时固定单一模型；**未测试切换模型**（同一对话中更换模型）的效果。
 - 已实测：命令行统计输出、面板渲染（轮次全量、会话累计缓存拆分、上下文窗口已用/总量）、四角缩放、面板与小按钮位置记忆、顶部汇总区与底部「更新于」栏常驻（窄宽度自动增高且不超出窗口）、会话历史标题列随宽度拉伸、空白新对话显示 0、守护进程（Codex 启动自动拉起监控、退出自动停止、监控崩溃自动重启）。
 - macOS / Linux 未测试。
+
+## 📝 环境测试报告（欢迎参与）
+
+欢迎大家测试后分享自己的运行环境，帮助项目收集更多兼容性数据。请在 [GitHub Discussions](https://github.com/THaoKun2022/ccm-token-spend/discussions) 的 **General** 分类新建讨论，按模板填写即可（会自动带上「测试报告」标签）：
+
+- **Release 版本号**：如 `v1.1-node`（Node 版）/ `v1.1-exe`（内置 Node 版）
+- **操作系统**：如 Windows 10 / Windows 11
+- **Codex 桌面版版本号**：如 `26.727.6591.0`
+- **Codex++ 版本号**：如 `1.2.44`
+- **是否成功运行**：成功 / 部分功能异常 / 失败
+
 ## 致谢
 
 内置的「当前对话 ID」检测逻辑参考了开源项目 [codex-context-used-meter](https://github.com/Minghou-Lei/codex-context-used-meter)（MIT License），已完全自研集成，不依赖任何外部脚本、无需额外安装。

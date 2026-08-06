@@ -132,6 +132,16 @@ npm install          # first time only: installs @yao-pkg/pkg
 - Verified: CLI stat output, panel rendering (full turn list, session-total cache split, context window used/total), four-corner resizing, panel/mini-button position memory, always-visible top summary and bottom "Updated at" bar (auto-height at narrow widths without exceeding the window), conversation history title column stretching with width, blank new thread showing 0, and the daemon (starts the monitor when Codex starts, stops it on exit, restarts it on crash).
 - macOS / Linux not tested.
 
+## 📝 Environment Test Reports (Contributions Welcome)
+
+After testing, please share your environment to help us gather more compatibility data. Create a new discussion in the **General** category on [GitHub Discussions](https://github.com/THaoKun2022/ccm-token-spend/discussions) and fill in the template (the "测试报告" label is applied automatically):
+
+- **Release version**: e.g. `v1.1-node` (Node) / `v1.1-exe` (bundled Node)
+- **OS**: e.g. Windows 10 / Windows 11
+- **Codex desktop version**: e.g. `26.727.6591.0`
+- **Codex++ version**: e.g. `1.2.44`
+- **Ran successfully?**: success / partial issues / failed
+
 ## Acknowledgements
 
 The built-in "current thread ID" detection logic references the open-source project [codex-context-used-meter](https://github.com/Minghou-Lei/codex-context-used-meter) (MIT License). It has been fully re-implemented in-house; no external script is required and no extra installation is needed.
