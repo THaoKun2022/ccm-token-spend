@@ -78,6 +78,8 @@ powershell -ExecutionPolicy Bypass -File .\install-autostart.ps1
 ```
 
 - 作用：登录 Windows 后自动常驻，检测到 Codex 运行时自动拉起监控，Codex 退出自动停止，监控崩溃自动重启。
+- 安装方式：计划任务（登录触发，唯一自启方式）；安装时会自动清理旧版本遗留的启动快捷方式；守护进程内置单实例锁，不会重复运行。
+- 日志：`%LOCALAPPDATA%\ccm-token-spend\guardian.log`（检测 Codex / 启动停止监控 / 失败原因）；排查「等待数据」先看它和 `watch.log`。
 - 卸载：
 
 ```powershell
@@ -92,6 +94,7 @@ powershell -ExecutionPolicy Bypass -File .\uninstall-autostart.ps1
 |---|---|---|
 | 面板不出现 | 脚本没复制对 / Codex 没完全重启 / Codex++ 未装 / 端口 9229 未开 | 复查 2.1–2.4 |
 | 面板显示「等待数据 / 请运行 node …」 | 监控进程没在跑 | 启动监控（2.3）；查看 `watch.log` |
+| 重启后面板显示「等待数据」 | 守护/监控没被拉起（自启失效或启动失败） | 看 `guardian.log`：无「守护进程启动」→ 重新运行 `install-autostart.ps1`；有「启动监控失败」→ 按日志原因处理 |
 | 出现两个小按钮 | 旧脚本重复注入 | 删除 `%APPDATA%\Codex++\user_scripts` 里多余副本，重启 Codex |
 | 显示的是上一个对话的数据 | 新旧对话 ID 映射缓存过期 | 删除 `%LOCALAPPDATA%\ccm-token-spend\client-thread-map.json`，重启监控 |
 | 新对话显示 0 | 正常（设计如此） | 无需处理 |

@@ -93,6 +93,10 @@ If you do not want to start the monitor manually every time, install the daemon:
    powershell -ExecutionPolicy Bypass -File .\uninstall-autostart.ps1
    ```
 
+> Install method: registers a Scheduled Task (logon trigger) as the only auto-start mechanism; legacy Startup-folder shortcuts are cleaned up automatically during install. The daemon has a built-in single-instance lock.
+>
+> Runtime log: `%LOCALAPPDATA%\ccm-token-spend\guardian.log` (records Codex detection / monitor start-stop / failure reasons). When troubleshooting "Waiting for data", check it and `watch.log` first.
+>
 > Tip: close any manually opened monitor window before installing to avoid duplicate instances.
 
 ## Data Notes
@@ -122,6 +126,10 @@ npm install          # first time only: installs @yao-pkg/pkg
 .\node_modules\.bin\pkg ..\token-stats.mjs --target node22-win-x64 --output ..\release\exe-version\ccm-token-spend.exe
 ```
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
+
 ## Test Environment
 
 - Windows 10 22H2 (build 19045)
@@ -136,7 +144,7 @@ npm install          # first time only: installs @yao-pkg/pkg
 
 After testing, please share your environment to help us gather more compatibility data. Create a new discussion in the **General** category on [GitHub Discussions](https://github.com/THaoKun2022/ccm-token-spend/discussions) and fill in the template (the "测试报告" label is applied automatically):
 
-- **Release version**: e.g. `v1.1-node` (Node) / `v1.1-exe` (bundled Node)
+- **Release version**: e.g. `v1.2-node` (Node) / `v1.2-exe` (bundled Node)
 - **OS**: e.g. Windows 10 / Windows 11
 - **Codex desktop version**: e.g. `26.727.6591.0`
 - **Codex++ version**: e.g. `1.2.44`

@@ -11,8 +11,8 @@ body:
       label: Release 版本号
       description: 你使用的是哪个发布版本？
       options:
-        - v1.1-node（Node 版，脚本方式）
-        - v1.1-exe（内置 Node 版，免安装）
+        - v1.2-node（Node 版，脚本方式）
+        - v1.2-exe（内置 Node 版，免安装）
         - 其他 / 不确定
     validations:
       required: true

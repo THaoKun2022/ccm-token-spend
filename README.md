@@ -93,6 +93,10 @@ Codex 桌面版？ ──否──> 不支持（CLI 用户请勿继续）
    powershell -ExecutionPolicy Bypass -File .\uninstall-autostart.ps1
    ```
 
+> 安装方式：注册「计划任务」（登录触发）自动运行，为唯一自启方式；安装时会自动清理旧版本遗留的启动文件夹快捷方式。守护进程内置单实例锁，不会重复运行。
+>
+> 运行日志：`%LOCALAPPDATA%\ccm-token-spend\guardian.log`（记录检测 Codex / 启动停止监控 / 失败原因）；排查「等待数据」时先看它和 `watch.log`。
+>
 > 提示：如果之前有手动打开的监控窗口，先关闭它再安装，避免双实例。
 
 ## 数据说明
@@ -122,6 +126,10 @@ npm install          # 首次需要：安装 @yao-pkg/pkg
 .\node_modules\.bin\pkg ..\token-stats.mjs --target node22-win-x64 --output ..\release\exe-version\ccm-token-spend.exe
 ```
 
+## 更新记录（Changelog）
+
+版本更新说明见 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 测试环境
 
 - Windows 10 22H2（build 19045）
@@ -136,7 +144,7 @@ npm install          # 首次需要：安装 @yao-pkg/pkg
 
 欢迎大家测试后分享自己的运行环境，帮助项目收集更多兼容性数据。请在 [GitHub Discussions](https://github.com/THaoKun2022/ccm-token-spend/discussions) 的 **General** 分类新建讨论，按模板填写即可（会自动带上「测试报告」标签）：
 
-- **Release 版本号**：如 `v1.1-node`（Node 版）/ `v1.1-exe`（内置 Node 版）
+- **Release 版本号**：如 `v1.2-node`（Node 版）/ `v1.2-exe`（内置 Node 版）
 - **操作系统**：如 Windows 10 / Windows 11
 - **Codex 桌面版版本号**：如 `26.727.6591.0`
 - **Codex++ 版本号**：如 `1.2.44`
